@@ -1,19 +1,47 @@
 import Konva from 'konva/lib/Core'
 import { Line } from 'konva/lib/shapes/Line'
-import { useCallback, useLayoutEffect, useRef, useState } from 'react'
+import { useCallback, useLayoutEffect, useReducer, useRef, useState } from 'react'
+
+const actionTypes = {
+  IS_DRAWING: "IS_DRAWING",
+  SET_LINE: "SET_LINE"
+}
+
+const reducer = (state, action) => {
+switch (action.type) {
+  case actionTypes.IS_DRAWING:
+    console.log("pasamos");
+      return {
+        ...state, isDrawing: !state.isDrawing
+      }
+  case actionTypes.SET_LINE:
+    return {
+      ...state, drawingLine: action.payload
+    }
+
+  default:
+    state
+    break;
+}
+}
 
 function App() {
   let containerRef = useRef(null)
   let stage = useRef(null)
   
   const layer = new Konva.Layer(); 
-  let isDrawing = false
-  let drawingLine
+  // let isDrawing = false
+  // let drawingLine
   // const [isDrawing, setIsDrawing] = useState(false)
   // const [drawingLine, setDrawingLine] = useState()
 
-  const startDrawing = useCallback((e) => {
-    isDrawing = true
+  const [state, dispatch] = useReducer(reducer, {
+    isDrawing: false,
+    drawingLine: null
+  })
+
+  const startDrawing = (e) => {
+    dispatch({ type: actionTypes.IS_DRAWING })
     const position = stage.current.getPointerPosition()
     const line = new Line({
       stroke: '#df4b26',
@@ -23,31 +51,32 @@ function App() {
       points: [position.x, position.y, position.x, position.y],
     })
     layer.add(line)
-    drawingLine = line
-  },[stage ])
+    dispatch({ type: actionTypes.SET_LINE, payload: line })
+  }
 
-  const notDrawing = useCallback((e) => {
-    isDrawing = false
-  },[isDrawing, ])
+  const notDrawing = (e) => {
+    dispatch({ type: actionTypes.IS_DRAWING })
+  }
 
-  const drawing = useCallback((e) => {
+  const drawing = (e) => {
     // console.log(isDrawing);
-    if(!isDrawing){
+    if(!state.isDrawing){
       return
     }
 
     e.evt.preventDefault()
     const position = stage.current.getPointerPosition()
-    let newPoints = drawingLine.points().concat([position.x, position.y])
-    drawingLine.points(newPoints)
+    const line = state.drawingLine;
+    let newPoints = line.points().concat([position.x, position.y])
+    line.points(newPoints)
 
-  },[stage])
+  }
 
-  const loadEvents =useCallback((stage) => {
+  const loadEvents = (stage) => {
     stage.on('mousedown touchstart', startDrawing)
     stage.on('mouseup touchend', notDrawing)
     stage.on('mousemove touchmove', drawing)
-  },[stage, startDrawing, notDrawing, drawing])
+  }
 
   useLayoutEffect(() => {
     stage.current = new Konva.Stage({
