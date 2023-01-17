@@ -90,7 +90,7 @@ const App = observer(() => {
 
   const clear = () => {
     destroyEvents(stage.current)
-    stage.current.destroyChildren()
+    stage.current.removeChildren()
     stage.current.add(boardState.createLayer())
     loadEvents(stage.current)
   }
