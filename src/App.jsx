@@ -1,101 +1,112 @@
 import Konva from 'konva/lib/Core'
 import { Line } from 'konva/lib/shapes/Line'
-import { useCallback, useLayoutEffect, useReducer, useRef, useState } from 'react'
+import { observer, useLocalObservable } from 'mobx-react-lite';
+import { useCallback, useLayoutEffect, useRef } from 'react'
 
-const actionTypes = {
-  IS_DRAWING: "IS_DRAWING",
-  SET_LINE: "SET_LINE"
-}
-
-const reducer = (state, action) => {
-switch (action.type) {
-  case actionTypes.IS_DRAWING:
-    console.log("pasamos");
-      return {
-        ...state, isDrawing: !state.isDrawing
-      }
-  case actionTypes.SET_LINE:
-    return {
-      ...state, drawingLine: action.payload
-    }
-
-  default:
-    state
-    break;
-}
-}
-
-function App() {
+const App = observer(() => {
   let containerRef = useRef(null)
   let stage = useRef(null)
-  
-  const layer = new Konva.Layer(); 
-  // let isDrawing = false
-  // let drawingLine
-  // const [isDrawing, setIsDrawing] = useState(false)
-  // const [drawingLine, setDrawingLine] = useState()
 
-  const [state, dispatch] = useReducer(reducer, {
+  const boardState = useLocalObservable(() => ({
     isDrawing: false,
-    drawingLine: null
-  })
+    drawingLine: null,
+    layer: null,
+    mode: 'brush',
+    drawingToggle(){
+      this.isDrawing = !this.isDrawing;
+    },
+    setDrawingLine(line){
+      this.drawingLine = line
+    },
+    createLayer(){
+      this.layer = new Konva.Layer()
+      return this.layer
+    },
+    setMode(mode){
+      this.mode = mode
+    }
+  }))
 
-  const startDrawing = (e) => {
-    dispatch({ type: actionTypes.IS_DRAWING })
+  const startDrawing = useCallback((e) => {
+    console.log(boardState.isDrawing);
+
+    boardState.drawingToggle()
     const position = stage.current.getPointerPosition()
     const line = new Line({
       stroke: '#df4b26',
-      strokeWidth: 5,
+      strokeWidth: boardState.mode === 'brush' ? 5 : 10,
       lineCap: 'round',
       lineJoin: 'round',
+      // la linea necesita un inicio y un fin
       points: [position.x, position.y, position.x, position.y],
+      globalCompositeOperation:
+      boardState.mode === 'brush' ? 'source-over' : 'destination-out',
     })
-    layer.add(line)
-    dispatch({ type: actionTypes.SET_LINE, payload: line })
-  }
+    boardState.layer.add(line)
+    boardState.setDrawingLine(line)
+  },[stage, boardState.setDrawingLine, boardState.drawingToggle])
 
-  const notDrawing = (e) => {
-    dispatch({ type: actionTypes.IS_DRAWING })
-  }
+  const notDrawing = useCallback((e) => {
+    boardState.drawingToggle()
+  },[boardState.drawingToggle])
 
-  const drawing = (e) => {
-    // console.log(isDrawing);
-    if(!state.isDrawing){
+  const drawing = useCallback((e) => {
+    if(!boardState.isDrawing){
       return
     }
-
     e.evt.preventDefault()
+    const { drawingLine } = boardState
     const position = stage.current.getPointerPosition()
-    const line = state.drawingLine;
-    let newPoints = line.points().concat([position.x, position.y])
-    line.points(newPoints)
+    let newPoints = drawingLine.points().concat([position.x, position.y])
+    drawingLine.points(newPoints)
+    drawingLine.cache()
+  },[stage, boardState.isDrawing, boardState.drawingLine])
 
-  }
-
-  const loadEvents = (stage) => {
+  const loadEvents =useCallback((stage) => {
     stage.on('mousedown touchstart', startDrawing)
     stage.on('mouseup touchend', notDrawing)
     stage.on('mousemove touchmove', drawing)
-  }
+  },[stage, startDrawing, notDrawing, drawing])
+
+  const destroyEvents =useCallback((stage) => {
+    stage.off('mousedown touchstart', startDrawing)
+    stage.off('mouseup touchend', notDrawing)
+    stage.off('mousemove touchmove', drawing)
+  },[stage, startDrawing, notDrawing, drawing])
 
   useLayoutEffect(() => {
     stage.current = new Konva.Stage({
       width: 1000,
-      height: 1000,
+      height: 600,
       container: containerRef.current
     })
-    stage.current.add(layer)
+    stage.current.add(boardState.createLayer())
     loadEvents(stage.current)
   },[])
 
+  const exportCanva = () => {
+    console.log(stage.current.toJSON())
+  }
 
-  
+  const clear = () => {
+    destroyEvents(stage.current)
+    stage.current.destroyChildren()
+    stage.current.add(boardState.createLayer())
+    loadEvents(stage.current)
+  }
   
   return (
+    <>
     <div className="App" ref={containerRef}>
       hola nopm
     </div>
+    <button onClick={exportCanva}>export canva</button>
+    <button onClick={clear}>clear</button>
+    <button onClick={() => boardState.setMode("brush")}>brush</button>
+    <button onClick={() => boardState.setMode("eraser")}>eraser</button>
+    </>
+
   )
-}
+})
 
 export default App
